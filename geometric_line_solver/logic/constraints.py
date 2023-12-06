@@ -1,13 +1,13 @@
 '''
 Названия функций:
-        'get_points_coincidence_constraint',  # Dima +
-        'get_points_dist_constraint',         # Dima +
-        'get_parallel_constraint',            # Sveta +
-        'get_perpendicular_constraint',       # Sveta +
-        'get_angle_constraint',               # Dima +
-        'get_horizontal_constraint',          # Dima +
-        'get_vertical_constraint',            # Sveta
-        'get_point_belongs_line_constraint'   # Sveta
+        'get_points_coincidence_constraint', 
+        'get_points_dist_constraint',       
+        'get_parallel_constraint',           
+        'get_perpendicular_constraint',    
+        'get_angle_constraint',           
+        'get_horizontal_constraint',      
+        'get_vertical_constraint',        
+        'get_point_belongs_line_constraint'
 '''
 from functools import partial
 
@@ -16,6 +16,7 @@ import math
 
 from logic.newton import newtons_method
 
+# типы ограничений - лямбда переменые
 DEP_DICT = {
     'points_coincidence_constraint': 6,
     'points_dist_constraint': 5,
@@ -46,7 +47,7 @@ COIN_Y_1 = 3
 COIN_X_2 = 4
 COIN_Y_2 = 5
 
-
+# совпадение точек
 def get_points_coincidence_constraint(v, dv):
     F = np.array([
         v[COIN_X_2] + dv[COIN_X_2] - v[COIN_X_1] - dv[COIN_X_1],
@@ -66,7 +67,7 @@ def get_points_coincidence_constraint(v, dv):
     ], dtype=np.double)
     return J, F
 
-
+# расстояние между точками
 def get_points_dist_constraint(v, d, dv):
     F = np.array([
         (v[X_2] + dv[X_2] - v[X_1] - dv[X_1]) ** 2 + (v[Y_2] + dv[Y_2] - v[Y_1] - dv[Y_1]) ** 2 - d ** 2,
@@ -86,7 +87,7 @@ def get_points_dist_constraint(v, d, dv):
     ], dtype=np.double)
     return J, F
 
-
+# угол
 def get_angle_constraint(v, angle, dv):
     # 0 < angle < pi / 2
     # angle += 0.01
@@ -162,7 +163,7 @@ def get_angle_constraint(v, angle, dv):
     ], dtype=np.double)
     return J, F
 
-
+# горизонтпльность
 def get_horizontal_constraint(v, dv):
     F = np.array([
         v[Y_2] + dv[Y_2] - v[Y_1] - dv[Y_1],
@@ -180,7 +181,7 @@ def get_horizontal_constraint(v, dv):
     ], dtype=np.double)
     return J, F
 
-
+# вертикальность
 def get_vertical_constraint(v, dv):
     F = np.array([
         v[X_2] + dv[X_2] - v[X_1] - dv[X_1],
@@ -198,7 +199,7 @@ def get_vertical_constraint(v, dv):
     ], dtype=np.double)
     return J, F
 
-
+# параллельность
 def get_parallel_constraint(v, dv):
     ay12 = (v[Y_2] + dv[Y_2] - v[Y_1] - dv[Y_1])
     ay34 = (v[Y_4] + dv[Y_4] - v[Y_3] - dv[Y_3])
@@ -232,7 +233,7 @@ def get_parallel_constraint(v, dv):
     ])
     return J, F
 
-
+# перпендикулярность
 def get_perpendicular_constraint(v, dv):
     ay12 = (v[Y_2] + dv[Y_2] - v[Y_1] - dv[Y_1])
     ay34 = (v[Y_4] + dv[Y_4] - v[Y_3] - dv[Y_3])
@@ -266,7 +267,7 @@ def get_perpendicular_constraint(v, dv):
     ])
     return J, F
 
-
+# точка к прямой
 def get_point_belongs_line_constraint(v, dv):
     ax31 = (v[X_3] + dv[X_3] - v[X_1] - dv[X_1])
     ay31 = (v[Y_3] + dv[Y_3] - v[Y_1] - dv[Y_1])
@@ -311,16 +312,18 @@ def get_lam_num(storage):
 def get_coords(storage, storage_to_matrix, lam_num):
     coords_vector = [1.] * lam_num
 
-    # get current points position
+    # получение текущего положения точек
     for point_id in storage_to_matrix.keys():
         coords_vector.append(storage.points[point_id].x())
         coords_vector.append(storage.points[point_id].y())
     return coords_vector
 
-
+# индексы точек для определения ограничений
 def get_point_indexes(storage, constraint_id):
     constraints = storage.constraints
     constraint_point_indexes = []
+    # сначала добавляются индексы точек, принадлежащим линиям, затем точкам 
+
     # at first line objects
     for object in constraints[constraint_id].objects:
         if object['type'] == 'line':
@@ -356,16 +359,19 @@ def get_indices_mappings(storage):
     return storage_to_matrix, matrix_to_storage
 
 
+# генерация якобиана и вектора значений функций
 def get_jf_func(storage, coords_vector, storage_to_matrix, lam_num, start_delta_x):
+    # инициализация матрицы якоби и вектора значений функций
     J = np.zeros((len(coords_vector), len(coords_vector)))
     F = np.zeros(len(coords_vector))
 
+    # получение ограничений
     constraints = storage.constraints
     lamdas_counter = 0
 
-    # for each constraint
+    # по каждому ограниченю
     for constraint_id in constraints:
-        # global indexes list
+        # список глобальных индексов
         constraint_coord_indexes = []
 
         # find global indexes of lam for this constraint
@@ -383,14 +389,16 @@ def get_jf_func(storage, coords_vector, storage_to_matrix, lam_num, start_delta_
             constraint_coord_indexes.append(lam_num + storage_to_matrix[point_index] * 2)  # x
             constraint_coord_indexes.append(lam_num + storage_to_matrix[point_index] * 2 + 1)  # y
 
-        # find coords for this constraint
+        # получение координат для данного ограничения
         # TODO: иногда при наложении ограничения здесь list index out of range
         local_coords_vector = [coords_vector[index] for index in constraint_coord_indexes]
         local_start_delta_x = [start_delta_x[index] for index in constraint_coord_indexes]
 
-        # find local J, F
+        # находим локальные J, F
         local_J = []
         local_F = []
+
+        # в зависимости от типа ограничений выбираем соответствующую функцию
         # in angle and dist constraints we add as second argument (dist or angle) - constraints[constraint_id].value
         if constraints[constraint_id].name == 'points_coincidence_constraint':
             local_J, local_F = get_points_coincidence_constraint(local_coords_vector, local_start_delta_x)
@@ -413,6 +421,7 @@ def get_jf_func(storage, coords_vector, storage_to_matrix, lam_num, start_delta_
 
         # add local J, F to global J, F
         # we know global indexes: constraint_coord_indexes
+        # обновление глобального якобиана и вектора значений функций с использованием локальных J F
         for i in range(len(local_F)):
             F[constraint_coord_indexes[i]] += local_F[i]
 
@@ -429,18 +438,21 @@ def update_coords_in_storage(storage, coords_vector, lam_num, matrix_to_storage)
         storage.points[storage_id].setY(coords_vector[lam_num + matrix_id * 2 + 1])
 
 
+# пересчет координат точек
 def recalculate_point_positions(storage):
-    lam_num = get_lam_num(storage)
-    storage_to_matrix, matrix_to_storage = get_indices_mappings(storage)
-    coords_vector = get_coords(storage, storage_to_matrix, lam_num)
-    start_delta_x = [0.] * len(coords_vector)
+    lam_num = get_lam_num(storage) # получение числа ограничений
+    storage_to_matrix, matrix_to_storage = get_indices_mappings(storage) # 
+    coords_vector = get_coords(storage, storage_to_matrix, lam_num) #
+    start_delta_x = [0.] * len(coords_vector) #
     for i in range(lam_num):
         start_delta_x[i] = 1.
+    # 
     get_jf = partial(get_jf_func, storage, coords_vector, storage_to_matrix, lam_num)
     try:
+        # применение метода Ньютона для нахождения приращей
         deltas = newtons_method(get_jf, start_delta_x)
     except np.linalg.LinAlgError as e:
         raise RuntimeError('Ограничение не добавлено. Возможно, ограничения несовместимы!')
     coords_vector += deltas
-    # update point coords in storage
+    # обновление координкт точек в массиве
     update_coords_in_storage(storage, coords_vector, lam_num, matrix_to_storage)

@@ -1,7 +1,7 @@
 import numpy as np
 
 EPS = 1e-9
-MAX_ITER = 10000
+MAX_ITER = 10000 # максимальное число итераций
 ERROR_MAX_ITER = "Превышено число итераций метода Ньютона"
 
 
@@ -10,7 +10,7 @@ def newtons_method(get_jf, start_v):
     k = 0
     cur_v = start_v
     while k < MAX_ITER:
-        # расчет F и J
+        # расчет F и J (получение якобиана и вектора значений функций)
         j_matrix, f_vector = get_jf(cur_v)
         # критерий останова по F(V)
         # S = np.max(np.abs(delta_vector))
@@ -19,7 +19,7 @@ def newtons_method(get_jf, start_v):
         #     return cur_v
         # j_matrix += np.diag(np.ones(j_matrix.shape[0], dtype=np.double) * 1e-18, )
 
-        # решение СЛАУ
+        # решение СЛАУ для приращения
         try:
             delta_vector = np.linalg.solve(j_matrix, -f_vector)
         except np.linalg.LinAlgError as e:
@@ -28,13 +28,14 @@ def newtons_method(get_jf, start_v):
         # прибавление поправок к текущим координатам V_k+1 = V_k + dV_k
         cur_v += delta_vector
 
+        # проверка условия сходимости
         S = np.sqrt(np.sum(delta_vector ** 2))
         print('S = {}'.format(S))
         if S <= EPS:
             print('--------------------------------')
             return cur_v
         k = k + 1
-    raise RuntimeError(ERROR_MAX_ITER)
+    raise RuntimeError(ERROR_MAX_ITER) 
 
 # тесты
 # def get_sin_for_newton(x):

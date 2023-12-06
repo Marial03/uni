@@ -17,22 +17,24 @@ class LogicsObject(QObject):
 
     def __init__(self):
         QObject.__init__(self)
-        self.storage = storage.Storage()
-        self.queue = queue.Queue(maxsize=1)
+        self.storage = storage.Storage() # создание хранилища задач
+        self.queue = queue.Queue(maxsize=1) # создание очереди задач
         self.methods_mapping = {
             'add_line': self.add_line,
             'add_constraint': self.add_constraint,
             'delete_line': self.delete_line,
+            'delete_point': self.delete_point,
             'delete_constraint': self.delete_constraint,
             'move_line': self.move_line,
             'move_point': self.move_point,
-            # 'clicked_constraint': self.click_constraint,
+            # 'clicked_constraint': self.click_conмквstraint,
         }
 
         self.point_id_counter = 0
         self.line_id_counter = 0
         self.constraint_id_counter = 0
 
+    # добавление задачи в очередь
     def add_task(self, task):
         try:
             self.queue.put(task)
@@ -54,13 +56,16 @@ class LogicsObject(QObject):
                 try:
                     result = method(**task.params)
                 except RuntimeError as e:
+                    #  Отправка сигнала с результатами задачи (в случае ошибки)
                     self.task_done.emit(TaskResult(name=task.name, params=result, error='{}'.format(e)))
                 else:
+                    # Отправка сигнала с результатами задачи (в случае успеха)
                     self.task_done.emit(TaskResult(name=task.name, params=result))
                 self.queue.task_done()
             except queue.Empty:
                 continue
 
+    # Добавление точки в хранилище и возврат её ID
     def add_point_to_storage(self, point):
         point_id = self.point_id_counter
         self.storage.points[point_id] = point
@@ -118,6 +123,7 @@ class LogicsObject(QObject):
                 fictive_constraints_id.append(self.create_fictive_line_constraint(object['obj']))
         return fictive_constraints_id
 
+    # Создание фиктивного ограничения на расстояние между двумя точками линии
     def create_fictive_line_constraint(self, line_id):
         if len(self.storage.lines) == 0:
             return
@@ -132,12 +138,17 @@ class LogicsObject(QObject):
         constraint = Constraint('points_dist_constraint', objects, dist)
         return self.add_constraint_to_storage(constraint)
 
+    # Добавление линии в хранилище и возврат её id
     def add_line_to_storage(self, line):
         line_id = self.line_id_counter
         self.storage.lines[line_id] = line
         self.line_id_counter += 1
         return line_id
 
+
+    
+
+    # Добавление ограничения в хранилище и возврат его id
     def add_constraint_to_storage(self, constraint):
         for constraint_id, existed in self.storage.constraints.items():
             if existed.name == constraint.name:
@@ -153,27 +164,33 @@ class LogicsObject(QObject):
         self.constraint_id_counter += 1
         return constraint_id
 
+    # Удаление точки из хранилища
     def delete_point_from_storage(self, point_id):
         self.storage.points.pop(point_id)
 
+    # Удаление линии из хранилища
     def delete_line_from_storage(self, line_id):
         line_to_delete = self.storage.lines.pop(line_id)
         self.delete_point_from_storage(line_to_delete['p1_id'])
         self.delete_point_from_storage(line_to_delete['p2_id'])
 
+    # Получение координат точек, образующих линию
     def get_line_points_from_storage(self, line_id):
         line_dict = self.storage.lines[line_id]
         point1 = self.storage.points[line_dict['p1_id']]
         point2 = self.storage.points[line_dict['p2_id']]
         return {'id': line_dict['p1_id'], 'point': point1}, {'id': line_dict['p2_id'], 'point': point2}
 
+    # Удаление ограничения из хранилища
     def delete_constraint_from_storage(self, constraint_id):
         if constraint_id in self.storage.constraints:
             self.storage.constraints.pop(constraint_id)
 
+    # Установка новых координат для точки
     def set_point(self, point_id, point):
         self.storage.points[point_id] = point
 
+    # Добавление линии и соответствующих точек в хранилище
     def add_line(self, **params):
         point1 = params.get('point_1')
         point2 = params.get('point_2')
@@ -182,6 +199,7 @@ class LogicsObject(QObject):
         line_id = self.add_line_to_storage({'p1_id': first_id, 'p2_id': second_id})
         return {'p1_id': first_id, 'p2_id': second_id, 'line_id': line_id}
 
+    # добавление ограничений
     def add_constraint(self, **params):
         constraint = params.get('constraint')
         constraint_id = self.add_constraint_to_storage(constraint)
@@ -197,6 +215,7 @@ class LogicsObject(QObject):
             self.delete_constraint_from_storage(fict_id)
         return {'constraint_id': constraint_id, }
 
+    
     def get_constraints_by_obj(self, obj_type, obj_id):
         points_to_search = []
         lines_to_search = []
@@ -218,6 +237,16 @@ class LogicsObject(QObject):
 
         return constraints_arr
 
+     # удалние точек 
+    def delete_point(self, **params):
+        point_id = params.get('point_id')
+        constraints = self.get_constraints_by_obj('point', point_id)
+        for constraint_id in constraints:
+            self.delete_constraint_from_storage(constraint_id)
+        self.delete_point_from_storage(point_id)
+        return {'point_id': point_id, 'constraints': constraints}
+
+    # удалние линий 
     def delete_line(self, **params):
         line_id = params.get('line_id')
         constraints = self.get_constraints_by_obj('line', line_id)
@@ -226,11 +255,13 @@ class LogicsObject(QObject):
         self.delete_line_from_storage(line_id)
         return {'line_id': line_id, 'constraints': constraints}
 
+    # удаление ограничений
     def delete_constraint(self, **params):
         constraint_id = params.get('constraint_id')
         self.delete_constraint_from_storage(constraint_id)
         return {'constraint_id': constraint_id}
 
+    # перемещение линий
     def move_line(self, **params):
         line_id = params.get('line_id')
         move_vector = params.get('move_vector')
@@ -243,6 +274,7 @@ class LogicsObject(QObject):
         recalculate_point_positions(self.storage)
         return
 
+    # перемещение точек
     def move_point(self, **params):
         point_id = params.get('point_id')
         move_vector = params.get('move_vector')
